@@ -2,31 +2,42 @@
 
 Um sistema de alta performance desenvolvido para automatizar o processamento e a classificação de candidatos em processos seletivos de grande escala. 
 
-Este repositório contém duas versões do motor de classificação, garantindo flexibilidade para operar tanto em nuvem quanto em desktop:
+Este repositório contém o motor de classificação, garantindo flexibilidade para operar tanto em nuvem quanto em desktop:
 - **Versão Nuvem:** Google Apps Script (JavaScript) para Google Sheets.
 - **Versão Desktop:** VBA para Microsoft Excel.
 
-Ambos substituem processos manuais e planilhas lentas por processamento via código, desenhados para lidar com regras complexas de editais.
+Ele substitui processos manuais e planilhas lentas por processamento via código, atuando como um verdadeiro sistema de gestão de regras de negócio para editais complexos.
 
 ## 🎯 Capacidades do Sistema
 
-O script foi estruturado para atender à demanda de coordenadorias de recrutamento e seleção, aplicando automaticamente as seguintes regras de negócio:
+O script foi estruturado para atender à demanda de coordenadorias de recrutamento e seleção, aplicando automaticamente as seguintes diretrizes legais:
 
-- **Cálculo de Barema:** Processamento automatizado de pontuações, somando notas de provas, avaliação de titulações e tempo de experiência profissional.
-- **Gestão de Cotas:** Classificação segmentada e cruzamento de listas para Ampla Concorrência (AC), Pessoas com Deficiência (PCD) e Cotas Raciais.
-- **Critérios de Desempate:** Algoritmos para desempate baseados nas regras do edital (ex: prioridade para candidatos com maior idade).
-- **Regionalização:** Estruturação das listas finais agrupadas e filtradas por Cargo concorrido, Município de atuação e DRE (Diretoria Regional de Educação).
+- **Agrupamento Regionalizado:** Separação e ranqueamento de candidatos em lotes automáticos baseados na chave de lotação (DRE > Município > Cargo).
+- **Leitura Dinâmica do Quadro de Vagas:** O motor cruza a lista de inscritos com a aba de vagas autorizadas, definindo automaticamente se a base de cálculo para as cotas será o número de vagas ofertadas ou o total de classificados (Cadastro Reserva).
+- **Desempate em Cascata:** Algoritmo de ordenação rigoroso que processa múltiplos critérios de desempate sequencialmente (ex: *Nota Final*, seguida de *Maior Idade*, seguida de *Nota de Conhecimentos Específicos*).
+- **Gestão de Cotas Inteligente:** Distribuição simultânea de classificações para Ampla Concorrência (AC), Pessoas com Deficiência (PCD) e Cotas Raciais, identificando excedentes de cota automaticamente.
 
 ## 🛠️ Vantagens Técnicas
 
-- **Alta Performance (Dicionários na Memória):** Ambas as versões (GAS e VBA) utilizam objetos de Dicionário na memória para mapear candidatos por chaves compostas (CPF tratado + Nome). Isso permite processar milhares de linhas em segundos, evitando o travamento típico de fórmulas nativas (`PROCV/VLOOKUP`).
-- **Tratamento de Dados:** Padronização automática (inserção de zeros à esquerda em CPFs desconfigurados e remoção de caracteres especiais).
-- **Interface Amigável:** Injeção de menus customizados nas planilhas, permitindo que a equipe operacional execute as rotinas com um clique.
+- **Alta Performance (Dicionários na Memória):** Utiliza objetos de Dicionário em memória para processar agrupamentos e ordenações complexas em milhares de linhas em segundos, evitando o colapso típico de planilhas.
+- **Estruturação Pronta para Publicação:** O sistema não apenas ranqueia, mas devolve a base de dados organizada e agrupada por polo, agilizando a exportação para o Diário Oficial.
+- **Tratamento de Dados:** Padronização automática de chaves de busca e higienização de textos.
 
-## 📁 Estrutura do Repositório
+## ⚙️ Estrutura e Modularidade
 
-- `Code.gs` -> Código-fonte em Google Apps Script para implementação no Google Sheets.
-- `CruzarDados_Excel.vba` -> Código-fonte em Visual Basic for Applications para execução offline no Microsoft Excel.
+O código isola a lógica matemática das regras do edital, permitindo adaptações rápidas alterando apenas o bloco de configuração:
 
----
-*Desenvolvido para garantir eficiência, transparência e segurança de dados na gestão de processos seletivos.*
+```javascript
+// Exemplo de configuração do Motor de Classificação:
+var CONFIG_SELETIVO = {
+  colunasAgrupamento: ['DRE', 'MUNICÍPIO', 'CARGO'], 
+  colunaVagasNoQuadro: 'VAGAS', 
+  
+  colunaNota: 'NOTA FINAL',
+  colunaIdade: 'IDADE', // 1º Critério de desempate
+  colunaCE: 'CE',       // 2º Critério de desempate
+  colunaCota: 'COTA',
+  
+  percentualPCD: 0.10, 
+  percentualNegros: 0.20 
+};
