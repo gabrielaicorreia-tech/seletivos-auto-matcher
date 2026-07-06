@@ -1,49 +1,66 @@
 /**
- * AUTO MATCH DATA - GOOGLE SHEETS
+ * SELETIVOS AUTO MATCHER & CLASSIFICATION SUITE
  * Desenvolvido por: Gabriela Correia
- * Descrição: Script para cruzamento de dados automático entre abas usando CPF e Nome.
+ * Descrição: Sistema para cruzamento de dados e classificação regionalizada com cotas.
  */
 
 // ==========================================
-// ⚙️ CONFIGURAÇÕES GERAIS (Altere aqui)
+// ⚙️ CONFIGURAÇÕES DA COORDENADORIA (CRS)
 // ==========================================
-var CONFIG = {
-  nomeMenu: 'Automação RH', // Nome do menu que aparecerá no Sheets
-  nomeBotao: 'Cruzar Dados Automático', // Nome da ação
-  nomeAbaBase: 'base', // Aba onde estão os dados completos
-  colunasParaPuxar: [
-    // Liste aqui o nome exato das colunas que você quer trazer da base
-    "DATA FIM DO CONTRATO", "CH", "CB", "CE", "NOTAREDACAO", 
-    "NOTAFINAL", "CLASSGERAL", "CLASSAMPLA", "CLASSPCD", 
-    "CLASSRACA", "TIPO", "SELETIVO"
-  ]
+
+var CONFIG_GERAL = {
+  nomeMenu: 'Automação CRS'
 };
+
+var CONFIG_CRUZAMENTO = {
+  nomeAbaBase: 'base',
+  colunasParaPuxar: ["DATA FIM DO CONTRATO", "CH", "CB", "CE", "NOTAREDACAO", "NOTAFINAL", "CLASSGERAL", "CLASSAMPLA", "CLASSPCD", "CLASSRACA", "TIPO", "SELETIVO"]
+};
+
+var CONFIG_SELETIVO = {
+  abaCandidatos: 'Candidatos', 
+  abaQuadroVagas: 'Quadro de Vagas', 
+  colunasAgrupamento: ['DRE', 'MUNICÍPIO', 'CARGO'], 
+  colunaVagasNoQuadro: 'VAGAS', 
+  colunaNota: 'NOTA FINAL',
+  colunaIdade: 'IDADE',
+  colunaCE: 'CE',
+  colunaCota: 'COTA',
+  percentualPCD: 0.10, 
+  percentualNegros: 0.20 
+};
+
+// ==========================================
+// MENU DE INTERFACE (UI)
 // ==========================================
 
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
-  ui.createMenu(CONFIG.nomeMenu)
-      .addItem(CONFIG.nomeBotao, 'inserirOrdemDiretoNaPagina1')
+  ui.createMenu(CONFIG_GERAL.nomeMenu)
+      .addItem('1. Cruzar Dados da Base', 'inserirOrdemDiretoNaPagina1')
+      .addSeparator()
+      .addItem('2. Gerar Classificação e Cotas', 'processarClassificacaoCompleta')
       .addToUi();
 }
 
+// ==========================================
+// MÓDULO 1: CRUZAMENTO DE DADOS (MATCH)
+// ==========================================
+
 function inserirOrdemDiretoNaPagina1() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var abaBase = ss.getSheetByName(CONFIG.nomeAbaBase);
-  var abaAtual = ss.getActiveSheet(); // Pega a aba que o usuário estiver visualizando
+  var abaBase = ss.getSheetByName(CONFIG_CRUZAMENTO.nomeAbaBase);
+  var abaAtual = ss.getActiveSheet(); 
 
   if (!abaBase) {
-    SpreadsheetApp.getUi().alert("Erro: Não encontrei a aba chamada exatamente '" + CONFIG.nomeAbaBase + "'.");
+    SpreadsheetApp.getUi().alert("Erro: Não encontrei a aba '" + CONFIG_CRUZAMENTO.nomeAbaBase + "'.");
     return;
   }
 
   var dadosBase = abaBase.getDataRange().getValues();
   var dadosAtual = abaAtual.getDataRange().getValues();
 
-  if (dadosBase.length <= 1 || dadosAtual.length <= 1) {
-    SpreadsheetApp.getUi().alert("Erro: Uma das abas está vazia ou contém apenas os cabeçalhos.");
-    return;
-  }
+  if (dadosBase.length <= 1 || dadosAtual.length <= 1) return;
 
   var headersBase = dadosBase[0];
   var headersAtual = dadosAtual[0];
@@ -52,9 +69,7 @@ function inserirOrdemDiretoNaPagina1() {
     if (!texto) return "";
     var apenasNumeros = texto.toString().replace(/[^0-9]/g, "").trim();
     if (apenasNumeros === "") return "";
-    while (apenasNumeros.length < 11) {
-      apenasNumeros = "0" + apenasNumeros;
-    }
+    while (apenasNumeros.length < 11) apenasNumeros = "0" + apenasNumeros;
     return apenasNumeros;
   }
 
@@ -80,19 +95,13 @@ function inserirOrdemDiretoNaPagina1() {
   var atualIdxNome = encontrarColuna(headersAtual, ["NOME"]);
 
   if (baseIdxCPF === -1 || atualIdxCPF === -1) {
-    SpreadsheetApp.getUi().alert("Erro Crítico: Não localizei a coluna 'CPF' em uma das abas. Verifique a linha de cabeçalho.");
+    SpreadsheetApp.getUi().alert("Erro: Coluna 'CPF' não localizada.");
     return;
   }
 
   var indicesBasePuxar = [];
-  var colunasNaoEncontradas = [];
-
-  for (var i = 0; i < CONFIG.colunasParaPuxar.length; i++) {
-    var idx = encontrarColuna(headersBase, [CONFIG.colunasParaPuxar[i]]);
-    indicesBasePuxar.push(idx);
-    if (idx === -1) {
-      colunasNaoEncontradas.push(CONFIG.colunasParaPuxar[i]);
-    }
+  for (var i = 0; i < CONFIG_CRUZAMENTO.colunasParaPuxar.length; i++) {
+    indicesBasePuxar.push(encontrarColuna(headersBase, [CONFIG_CRUZAMENTO.colunasParaPuxar[i]]));
   }
 
   var dicionarioBase = {};
@@ -102,33 +111,26 @@ function inserirOrdemDiretoNaPagina1() {
     if (cpf === "") continue;
 
     var nome = baseIdxNome !== -1 ? limparTextoSecundario(row[baseIdxNome]) : "";
-    
     var valoresExtraidos = [];
     for (var c = 0; c < indicesBasePuxar.length; c++) {
-      var idx = indicesBasePuxar[c];
-      valoresExtraidos.push(idx !== -1 ? row[idx] : "");
+      valoresExtraidos.push(indicesBasePuxar[c] !== -1 ? row[indicesBasePuxar[c]] : "");
     }
 
     dicionarioBase[cpf] = valoresExtraidos;
-    if (nome !== "") {
-      dicionarioBase[cpf + "_" + nome] = valoresExtraidos;
-    }
+    if (nome !== "") dicionarioBase[cpf + "_" + nome] = valoresExtraidos;
   }
 
   var novasLinhasPlanilha = [];
   var novoCabecalhoCompleto = headersAtual.slice();
-  for (var i = 0; i < CONFIG.colunasParaPuxar.length; i++) {
-    novoCabecalhoCompleto.push(CONFIG.colunasParaPuxar[i]);
+  for (var i = 0; i < CONFIG_CRUZAMENTO.colunasParaPuxar.length; i++) {
+    novoCabecalhoCompleto.push(CONFIG_CRUZAMENTO.colunasParaPuxar[i]);
   }
   novasLinhasPlanilha.push(novoCabecalhoCompleto);
 
   var contSucesso = 0;
-  var contFalha = 0;
-
   for (var r = 1; r < dadosAtual.length; r++) {
     var row = dadosAtual[r];
     var novaLinhaModificada = row.slice();
-
     var cpf = limparEPadronizarCPF(row[atualIdxCPF]);
     var nome = atualIdxNome !== -1 ? limparTextoSecundario(row[atualIdxNome]) : "";
 
@@ -138,26 +140,128 @@ function inserirOrdemDiretoNaPagina1() {
       novaLinhaModificada = novaLinhaModificada.concat(dadosPuxados);
       contSucesso++;
     } else {
-      for (var i = 0; i < CONFIG.colunasParaPuxar.length; i++) {
+      for (var i = 0; i < CONFIG_CRUZAMENTO.colunasParaPuxar.length; i++) {
         novaLinhaModificada.push("Não encontrado");
       }
-      contFalha++;
     }
     novasLinhasPlanilha.push(novaLinhaModificada);
   }
 
   abaAtual.getRange(1, 1, novasLinhasPlanilha.length, novasLinhasPlanilha[0].length).setValues(novasLinhasPlanilha);
-  
-  var tamanhoColOriginal = headersAtual.length;
-  abaAtual.getRange(1, tamanhoColOriginal + 1, 1, CONFIG.colunasParaPuxar.length).setBackground("#d9ead3");
+  abaAtual.getRange(1, headersAtual.length + 1, 1, CONFIG_CRUZAMENTO.colunasParaPuxar.length).setBackground("#d9ead3");
+  SpreadsheetApp.getUi().alert("Processamento concluído! \n✅ Localizados: " + contSucesso);
+}
 
-  var mensagemResultado = "Processamento concluído!\n\n" + 
-                          "✅ Localizados: " + contSucesso + "\n" +
-                          "❌ Sem correspondência: " + contFalha;
+// ==========================================
+// MÓDULO 2: CLASSIFICAÇÃO, DESEMPATE E COTAS
+// ==========================================
+
+function processarClassificacaoCompleta() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abaCand = ss.getSheetByName(CONFIG_SELETIVO.abaCandidatos);
+  var abaVagas = ss.getSheetByName(CONFIG_SELETIVO.abaQuadroVagas);
   
-  if (colunasNaoEncontradas.length > 0) {
-    mensagemResultado += "\n\n⚠️ Atenção: As seguintes colunas não foram encontradas na base:\n" + colunasNaoEncontradas.join(", ");
+  if (!abaCand || !abaVagas) {
+    SpreadsheetApp.getUi().alert("Erro: Verifique se as abas 'Candidatos' e 'Quadro de Vagas' existem.");
+    return;
   }
-
-  SpreadsheetApp.getUi().alert(mensagemResultado);
+  
+  var dadosVagas = abaVagas.getDataRange().getValues();
+  var cabVagas = dadosVagas[0];
+  var idxVagasDRE = cabVagas.indexOf(CONFIG_SELETIVO.colunasAgrupamento[0]);
+  var idxVagasMun = cabVagas.indexOf(CONFIG_SELETIVO.colunasAgrupamento[1]);
+  var idxVagasCargo = cabVagas.indexOf(CONFIG_SELETIVO.colunasAgrupamento[2]);
+  var idxQtdVagas = cabVagas.indexOf(CONFIG_SELETIVO.colunaVagasNoQuadro);
+  
+  var dicionarioVagas = {};
+  
+  function limparChave(texto) {
+    if(!texto) return "";
+    return texto.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  }
+  
+  for (var v = 1; v < dadosVagas.length; v++) {
+    var linhaV = dadosVagas[v];
+    var chaveLocal = limparChave(linhaV[idxVagasDRE]) + "_" + limparChave(linhaV[idxVagasMun]) + "_" + limparChave(linhaV[idxVagasCargo]);
+    dicionarioVagas[chaveLocal] = parseInt(linhaV[idxQtdVagas]) || 0;
+  }
+  
+  var dadosCand = abaCand.getDataRange().getValues();
+  var cabCand = dadosCand[0];
+  var candidatos = dadosCand.slice(1);
+  
+  var idxCandDRE = cabCand.indexOf(CONFIG_SELETIVO.colunasAgrupamento[0]);
+  var idxCandMun = cabCand.indexOf(CONFIG_SELETIVO.colunasAgrupamento[1]);
+  var idxCandCargo = cabCand.indexOf(CONFIG_SELETIVO.colunasAgrupamento[2]);
+  
+  var idxNota = cabCand.indexOf(CONFIG_SELETIVO.colunaNota);
+  var idxIdade = cabCand.indexOf(CONFIG_SELETIVO.colunaIdade);
+  var idxCE = cabCand.indexOf(CONFIG_SELETIVO.colunaCE);
+  var idxCota = cabCand.indexOf(CONFIG_SELETIVO.colunaCota);
+  
+  var grupos = {}; 
+  
+  for (var c = 0; c < candidatos.length; c++) {
+    var linhaC = candidatos[c];
+    var chaveCand = limparChave(linhaC[idxCandDRE]) + "_" + limparChave(linhaC[idxCandMun]) + "_" + limparChave(linhaC[idxCandCargo]);
+                    
+    if (!grupos[chaveCand]) grupos[chaveCand] = [];
+    grupos[chaveCand].push(linhaC);
+  }
+  
+  cabCand.push("CLASS GERAL", "CLASS AC", "CLASS NEGROS", "CLASS PCD", "BASE DE CÁLCULO");
+  var candidatosClassificados = [];
+  
+  for (var chaveGrupo in grupos) {
+    var lote = grupos[chaveGrupo];
+    
+    // ORDENAÇÃO COM DESEMPATE EM CASCATA
+    lote.sort(function(a, b) {
+      var notaA = parseFloat(a[idxNota]) || 0;
+      var notaB = parseFloat(b[idxNota]) || 0;
+      if (notaB !== notaA) return notaB - notaA; 
+      
+      var idadeA = parseInt(a[idxIdade]) || 0;
+      var idadeB = parseInt(b[idxIdade]) || 0;
+      if (idadeB !== idadeA) return idadeB - idadeA;
+      
+      var ceA = idxCE > -1 ? (parseFloat(a[idxCE]) || 0) : 0;
+      var ceB = idxCE > -1 ? (parseFloat(b[idxCE]) || 0) : 0;
+      return ceB - ceA;
+    });
+    
+    var vagasOfertadas = dicionarioVagas[chaveGrupo] || 0;
+    var inscritosNoLote = lote.length;
+    var baseCalculo = vagasOfertadas > 0 ? vagasOfertadas : inscritosNoLote;
+    
+    var limitePCD = Math.ceil(baseCalculo * CONFIG_SELETIVO.percentualPCD);
+    var limiteNegros = Math.ceil(baseCalculo * CONFIG_SELETIVO.percentualNegros);
+    
+    var posGeral = 1, posAC = 1, posPCD = 1, posNegros = 1;
+    
+    for (var i = 0; i < lote.length; i++) {
+      var cotaAtual = lote[i][idxCota].toString().toUpperCase().trim();
+      var linhaGeral = posGeral++;
+      var linhaAC = "-", linhaPCD = "-", linhaNegros = "-";
+      
+      if (cotaAtual === "PCD" || cotaAtual === "PESSOA COM DEFICIÊNCIA") {
+        linhaPCD = posPCD++;
+      } else if (cotaAtual === "NEGROS" || cotaAtual === "COTA RACIAL") {
+        linhaNegros = posNegros++;
+      } else {
+        linhaAC = posAC++;
+      }
+      
+      var infoBase = vagasOfertadas > 0 ? (vagasOfertadas + " vagas") : (inscritosNoLote + " inscritos (CR)");
+      lote[i].push(linhaGeral, linhaAC, linhaNegros, linhaPCD, infoBase);
+      candidatosClassificados.push(lote[i]); 
+    }
+  }
+  
+  var dadosFinais = [cabCand].concat(candidatosClassificados);
+  abaCand.clearContents();
+  abaCand.getRange(1, 1, dadosFinais.length, dadosFinais[0].length).setValues(dadosFinais);
+  abaCand.getRange(1, cabCand.length - 4, 1, 5).setBackground("#e2efda");
+  
+  SpreadsheetApp.getUi().alert("Classificação concluída!\nAgrupamento, desempate por idade e cotas aplicados com sucesso.");
 }
