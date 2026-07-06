@@ -1,8 +1,12 @@
-# 📊 Seletivos Auto Matcher
+# 📊 Seletivos Auto Matcher (Google Sheets & Excel)
 
-Um sistema desenvolvido em Google Apps Script (GAS) para automatizar o processamento e a classificação de candidatos em processos seletivos de grande escala diretamente no Google Sheets.
+Um sistema de alta performance desenvolvido para automatizar o processamento e a classificação de candidatos em processos seletivos de grande escala. 
 
-Este projeto substitui processos manuais e planilhas lentas por um motor de classificação via código, desenhado para lidar com as regras complexas de editais, incluindo cálculos de notas, políticas de cotas e distribuição regionalizada.
+Este repositório contém duas versões do motor de classificação, garantindo flexibilidade para operar tanto em nuvem quanto em desktop:
+- **Versão Nuvem:** Google Apps Script (JavaScript) para Google Sheets.
+- **Versão Desktop:** VBA para Microsoft Excel.
+
+Ambos substituem processos manuais e planilhas lentas por processamento via código, desenhados para lidar com regras complexas de editais.
 
 ## 🎯 Capacidades do Sistema
 
@@ -15,22 +19,14 @@ O script foi estruturado para atender à demanda de coordenadorias de recrutamen
 
 ## 🛠️ Vantagens Técnicas
 
-- **Alta Performance com Dicionários:** Utiliza objetos em JavaScript na memória para mapear candidatos por chaves compostas (CPF tratado + Nome), processando milhares de linhas em segundos. Evita o colapso e a lentidão típicos de fórmulas como `PROCV/VLOOKUP`.
-- **Tratamento e Higienização de Dados:** Padronização automática de dados de entrada (inserção de zeros à esquerda em CPFs desconfigurados e remoção de acentos/caracteres especiais).
-- **Interface UI Customizada:** Injeta um menu próprio diretamente na interface do Google Sheets, permitindo que a equipe operacional execute rotinas complexas de classificação com apenas um clique, sem necessidade de interagir com o código.
+- **Alta Performance (Dicionários na Memória):** Ambas as versões (GAS e VBA) utilizam objetos de Dicionário na memória para mapear candidatos por chaves compostas (CPF tratado + Nome). Isso permite processar milhares de linhas em segundos, evitando o travamento típico de fórmulas nativas (`PROCV/VLOOKUP`).
+- **Tratamento de Dados:** Padronização automática (inserção de zeros à esquerda em CPFs desconfigurados e remoção de caracteres especiais).
+- **Interface Amigável:** Injeção de menus customizados nas planilhas, permitindo que a equipe operacional execute as rotinas com um clique.
 
-## ⚙️ Estrutura e Modularidade
+## 📁 Estrutura do Repositório
 
-O código separa a lógica de processamento das configurações do edital, permitindo adaptações rápidas para novos processos seletivos.
+- `Code.gs` -> Código-fonte em Google Apps Script para implementação no Google Sheets.
+- `CruzarDados_Excel.vba` -> Código-fonte em Visual Basic for Applications para execução offline no Microsoft Excel.
 
-```javascript
-// Exemplo de configuração adaptável para diferentes editais:
-var CONFIG = {
-  nomeMenu: 'Automação Recrutamento', 
-  acoes: [
-    { nome: 'Processar Barema e Classificação', funcao: 'classificarCandidatos' },
-    { nome: 'Gerar Lista de Convocação (Volante)', funcao: 'inserirOrdemDiretoNaPagina1' }
-  ],
-  colunasChave: ["CPF", "NOME"],
-  colunasExtracao: ["TITULACAO", "EXPERIENCIA", "NOTAFINAL", "COTA", "IDADE", "CARGO", "MUNICIPIO", "DRE"]
-};
+---
+*Desenvolvido para garantir eficiência, transparência e segurança de dados na gestão de processos seletivos.*
